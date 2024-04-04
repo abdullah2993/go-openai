@@ -1,6 +1,7 @@
 package openai //nolint:testpackage // testing private field
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -106,6 +107,53 @@ func TestFileUploadWithFailingFormBuilder(t *testing.T) {
 		t.Fatal("CreateFile should return error if form builder fails")
 	}
 	checks.ErrorIs(t, err, mockError, "CreateFile should return error if form builder fails")
+}
+
+func TestFileReaderUploadWithFailingFormBuilder(t *testing.T) {
+	config := DefaultConfig("")
+	config.BaseURL = ""
+	client := NewClientWithConfig(config)
+	mockBuilder := &mockFormBuilder{}
+	client.createFormBuilder = func(io.Writer) utils.FormBuilder {
+		return mockBuilder
+	}
+
+	ctx := context.Background()
+	req := FileReaderRequest{
+		Name:    "foo",
+		Reader:  bytes.NewBufferString("foo"),
+		Purpose: PurposeAssistants,
+	}
+
+	mockError := fmt.Errorf("mockWriteField error")
+	mockBuilder.mockWriteField = func(string, string) error {
+		return mockError
+	}
+	_, err := client.CreateFileFromReader(ctx, req)
+	checks.ErrorIs(t, err, mockError, "CreateFileFromReader should return error if form builder fails")
+
+	mockError = fmt.Errorf("mockCreateFormFile error")
+	mockBuilder.mockWriteField = func(string, string) error {
+		return nil
+	}
+	mockBuilder.mockCreateFormFileReader = func(string, io.Reader, string) error {
+		return mockError
+	}
+	_, err = client.CreateFileFromReader(ctx, req)
+	checks.ErrorIs(t, err, mockError, "CreateFileFromReader should return error if form builder fails")
+
+	mockError = fmt.Errorf("mockClose error")
+	mockBuilder.mockWriteField = func(string, string) error {
+		return nil
+	}
+	mockBuilder.mockCreateFormFileReader = func(string, io.Reader, string) error {
+		return nil
+	}
+	mockBuilder.mockClose = func() error {
+		return mockError
+	}
+	_, err = client.CreateFileFromReader(ctx, req)
+	checks.ErrorIs(t, err, mockError, "CreateFileFromReader should return error if form builder fails")
 }
 
 func TestFileUploadWithNonExistentPath(t *testing.T) {

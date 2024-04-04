@@ -35,6 +35,13 @@ type FileBytesRequest struct {
 	Purpose PurposeType
 }
 
+// FileReaderRequest represents a file upload request using a io.Reader as input
+type FileReaderRequest struct {
+	Name    string
+	Reader  io.Reader
+	Purpose PurposeType
+}
+
 // File struct represents an OpenAPI file.
 type File struct {
 	Bytes         int    `json:"bytes"`
@@ -104,6 +111,35 @@ func (c *Client) CreateFile(ctx context.Context, request FileRequest) (file File
 	}
 
 	err = builder.CreateFormFile("file", fileData)
+	if err != nil {
+		return
+	}
+
+	err = builder.Close()
+	if err != nil {
+		return
+	}
+
+	req, err := c.newRequest(ctx, http.MethodPost, c.fullURL("/files"),
+		withBody(&b), withContentType(builder.FormDataContentType()))
+	if err != nil {
+		return
+	}
+
+	err = c.sendRequest(req, &file)
+	return
+}
+
+func (c *Client) CreateFileFromReader(ctx context.Context, request FileReaderRequest) (file File, err error) {
+	var b bytes.Buffer
+	builder := c.createFormBuilder(&b)
+
+	err = builder.WriteField("purpose", string(request.Purpose))
+	if err != nil {
+		return
+	}
+
+	err = builder.CreateFormFileReader("file", request.Reader, request.Name)
 	if err != nil {
 		return
 	}

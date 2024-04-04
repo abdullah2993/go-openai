@@ -1,6 +1,7 @@
 package openai_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -39,6 +40,19 @@ func TestFileUpload(t *testing.T) {
 		Purpose:  "fine-tune",
 	}
 	_, err := client.CreateFile(context.Background(), req)
+	checks.NoError(t, err, "CreateFile error")
+}
+
+func TestFileReaderUpload(t *testing.T) {
+	client, server, teardown := setupOpenAITestServer()
+	defer teardown()
+	server.RegisterHandler("/v1/files", handleCreateFile)
+	req := openai.FileReaderRequest{
+		Name:    "test.go",
+		Reader:  bytes.NewBufferString("foo"),
+		Purpose: "fine-tune",
+	}
+	_, err := client.CreateFileFromReader(context.Background(), req)
 	checks.NoError(t, err, "CreateFile error")
 }
 
