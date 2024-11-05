@@ -73,10 +73,19 @@ type MessageFilesList struct {
 	httpHeader
 }
 
+type MessageDeletionStatus struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Deleted bool   `json:"deleted"`
+
+	httpHeader
+}
+
 // CreateMessage creates a new message.
 func (c *Client) CreateMessage(ctx context.Context, threadID string, request MessageRequest) (msg Message, err error) {
 	urlSuffix := fmt.Sprintf("/threads/%s/%s", threadID, messagesSuffix)
-	req, err := c.newRequest(ctx, http.MethodPost, c.fullURL(urlSuffix), withBody(request), withBetaAssistantV1())
+	req, err := c.newRequest(ctx, http.MethodPost, c.fullURL(urlSuffix), withBody(request),
+		withBetaAssistantVersion(c.config.AssistantVersion))
 	if err != nil {
 		return
 	}
@@ -91,6 +100,7 @@ func (c *Client) ListMessage(ctx context.Context, threadID string,
 	order *string,
 	after *string,
 	before *string,
+	runID *string,
 ) (messages MessagesList, err error) {
 	urlValues := url.Values{}
 	if limit != nil {
@@ -105,13 +115,18 @@ func (c *Client) ListMessage(ctx context.Context, threadID string,
 	if before != nil {
 		urlValues.Add("before", *before)
 	}
+	if runID != nil {
+		urlValues.Add("run_id", *runID)
+	}
+
 	encodedValues := ""
 	if len(urlValues) > 0 {
 		encodedValues = "?" + urlValues.Encode()
 	}
 
 	urlSuffix := fmt.Sprintf("/threads/%s/%s%s", threadID, messagesSuffix, encodedValues)
-	req, err := c.newRequest(ctx, http.MethodGet, c.fullURL(urlSuffix), withBetaAssistantV1())
+	req, err := c.newRequest(ctx, http.MethodGet, c.fullURL(urlSuffix),
+		withBetaAssistantVersion(c.config.AssistantVersion))
 	if err != nil {
 		return
 	}
@@ -126,7 +141,8 @@ func (c *Client) RetrieveMessage(
 	threadID, messageID string,
 ) (msg Message, err error) {
 	urlSuffix := fmt.Sprintf("/threads/%s/%s/%s", threadID, messagesSuffix, messageID)
-	req, err := c.newRequest(ctx, http.MethodGet, c.fullURL(urlSuffix), withBetaAssistantV1())
+	req, err := c.newRequest(ctx, http.MethodGet, c.fullURL(urlSuffix),
+		withBetaAssistantVersion(c.config.AssistantVersion))
 	if err != nil {
 		return
 	}
@@ -139,11 +155,11 @@ func (c *Client) RetrieveMessage(
 func (c *Client) ModifyMessage(
 	ctx context.Context,
 	threadID, messageID string,
-	metadata map[string]any,
+	metadata map[string]string,
 ) (msg Message, err error) {
 	urlSuffix := fmt.Sprintf("/threads/%s/%s/%s", threadID, messagesSuffix, messageID)
 	req, err := c.newRequest(ctx, http.MethodPost, c.fullURL(urlSuffix),
-		withBody(metadata), withBetaAssistantV1())
+		withBody(map[string]any{"metadata": metadata}), withBetaAssistantVersion(c.config.AssistantVersion))
 	if err != nil {
 		return
 	}
@@ -158,7 +174,8 @@ func (c *Client) RetrieveMessageFile(
 	threadID, messageID, fileID string,
 ) (file MessageFile, err error) {
 	urlSuffix := fmt.Sprintf("/threads/%s/%s/%s/files/%s", threadID, messagesSuffix, messageID, fileID)
-	req, err := c.newRequest(ctx, http.MethodGet, c.fullURL(urlSuffix), withBetaAssistantV1())
+	req, err := c.newRequest(ctx, http.MethodGet, c.fullURL(urlSuffix),
+		withBetaAssistantVersion(c.config.AssistantVersion))
 	if err != nil {
 		return
 	}
@@ -173,11 +190,28 @@ func (c *Client) ListMessageFiles(
 	threadID, messageID string,
 ) (files MessageFilesList, err error) {
 	urlSuffix := fmt.Sprintf("/threads/%s/%s/%s/files", threadID, messagesSuffix, messageID)
-	req, err := c.newRequest(ctx, http.MethodGet, c.fullURL(urlSuffix), withBetaAssistantV1())
+	req, err := c.newRequest(ctx, http.MethodGet, c.fullURL(urlSuffix),
+		withBetaAssistantVersion(c.config.AssistantVersion))
 	if err != nil {
 		return
 	}
 
 	err = c.sendRequest(req, &files)
+	return
+}
+
+// DeleteMessage deletes a message..
+func (c *Client) DeleteMessage(
+	ctx context.Context,
+	threadID, messageID string,
+) (status MessageDeletionStatus, err error) {
+	urlSuffix := fmt.Sprintf("/threads/%s/%s/%s", threadID, messagesSuffix, messageID)
+	req, err := c.newRequest(ctx, http.MethodDelete, c.fullURL(urlSuffix),
+		withBetaAssistantVersion(c.config.AssistantVersion))
+	if err != nil {
+		return
+	}
+
+	err = c.sendRequest(req, &status)
 	return
 }
